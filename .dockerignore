@@ -1,0 +1,9 @@
+node_modules
+agents/
+docs/
+.claude/
+.git/
+.playwright-mcp/
+*.png
+*.md
+!package.json

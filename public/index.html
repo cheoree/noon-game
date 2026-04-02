@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>점심아레나 - Noon Arena</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobby-screen" class="screen">
+    <h1 class="game-title">점심아레나</h1>
+    <p class="game-subtitle">NOON ARENA</p>
+    <div class="lobby-card">
+      <label>닉네임</label>
+      <input id="nickname" class="input" type="text" placeholder="닉네임 입력" maxlength="8" autocomplete="off">
+      <button id="create-room-btn" class="btn btn-primary btn-block">방 만들기</button>
+      <button id="solo-btn" class="btn btn-gold btn-block">혼자 하기 (vs AI)</button>
+      <div class="divider"></div>
+      <label>방 참가</label>
+      <input id="room-code-input" class="input input-roomcode" type="text" placeholder="방 코드" maxlength="4" autocomplete="off">
+      <button id="join-room-btn" class="btn btn-secondary btn-block">참가하기</button>
+    </div>
+  </div>
+
+  <!-- WAITING SCREEN -->
+  <div id="waiting-screen" class="screen hidden">
+    <div class="room-code-display">
+      <span class="room-code-label">방 코드</span>
+      <span id="display-room-code" class="room-code"></span>
+    </div>
+    <span id="player-count" class="player-count"></span>
+    <div id="player-list" class="player-grid"></div>
+    <button id="start-game-btn" class="btn btn-primary btn-block btn-start">게임 시작!</button>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="game-screen" class="screen hidden">
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud" class="hud">
+      <span id="timer" class="hud-timer"></span>
+      <div class="hud-center">
+        <span id="alive-count" class="hud-alive"></span>
+        <span id="shrink-warning" class="hud-shrink-warning">아레나 수축 중!</span>
+      </div>
+      <span></span>
+    </div>
+
+    <div id="kill-log" class="kill-log"></div>
+
+    <div id="countdown-overlay" class="countdown-overlay"></div>
+
+    <div id="joystick-zone" class="joystick-zone">
+      <div id="joystick-base" class="joystick-base">
+        <div id="joystick-thumb" class="joystick-thumb"></div>
+      </div>
+    </div>
+
+    <div id="action-buttons" class="action-buttons">
+      <button id="dash-btn" class="action-btn action-btn-dash">
+        박치기
+        <div class="cooldown-overlay"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div id="result-screen" class="screen hidden">
+    <div id="winner-display" class="winner-showcase"></div>
+    <div id="rankings-list" class="rankings"></div>
+    <button id="restart-btn" class="btn btn-gold btn-block btn-play-again">다시 하기!</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

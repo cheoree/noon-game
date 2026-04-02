@@ -1,0 +1,18 @@
+{
+  "name": "noon-game-agents",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "orchestrate": "tsx orchestrator.ts",
+    "plan": "tsx orchestrator.ts --stage plan",
+    "generate": "tsx orchestrator.ts --stage generate",
+    "evaluate": "tsx orchestrator.ts --stage evaluate"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
