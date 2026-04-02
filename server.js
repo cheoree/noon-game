@@ -43,9 +43,9 @@ const DODGE_DURATION = 15;     // ticks
 const DODGE_COOLDOWN = 300;    // ticks (5 sec)
 const DODGE_BURST = 6;         // lateral burst speed
 
-const EDGE_ZONE = 20;          // edge zone width where players teeter
-const EDGE_DRAG = 0.82;        // drag in edge zone (slows but doesn't bounce)
-const FALL_BUFFER = 10;        // must go past edge by this much to actually fall
+const EDGE_ZONE = 12;          // edge zone width where players teeter
+const EDGE_DRAG = 0.92;        // drag in edge zone (약한 저항, 걸리는 느낌)
+const FALL_BUFFER = 5;         // must go past edge by this much to actually fall
 
 const MAX_PLAYERS = 10;
 const COUNTDOWN_TICKS = 3 * TICK_RATE; // 3 seconds
