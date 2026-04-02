@@ -1071,6 +1071,84 @@
     }
   }
 
+  // ─── 배치기 임팩트 이펙트 (빵 터지는 느낌) ────────────────────────────────
+  function spawnPunchImpact(sx, sy, chargeRatio, hitCount) {
+    const { x: wx, z: wz } = serverToWorld(sx, sy);
+    const intensity = 0.3 + chargeRatio * 0.7; // 차징에 비례
+
+    // 1) 충격파 링 (바닥에서 퍼져나감)
+    const ringCount = Math.floor(12 + chargeRatio * 20);
+    const ringColor = hitCount > 0
+      ? (chargeRatio > 0.6 ? '#ff2200' : '#ff8844')
+      : '#ffcc44';
+    spawnShockwaveRing(sx, sy, ringCount, ringColor, 10, 0.8 + chargeRatio * 2);
+
+    // 2) 중심부 폭발 파티클
+    const burstCount = Math.floor(8 + chargeRatio * 16);
+    spawn3DParticles(sx, sy, burstCount, ringColor, 1 + chargeRatio * 2);
+
+    // 3) 충격파 구체 (빠르게 팽창 후 소멸)
+    const shockGeo = new THREE.SphereGeometry(2, 16, 12);
+    const shockMat = new THREE.MeshBasicMaterial({
+      color: hitCount > 0 ? 0xff4400 : 0xffaa44,
+      transparent: true, opacity: 0.8,
+    });
+    const shockMesh = new THREE.Mesh(shockGeo, shockMat);
+    shockMesh.position.set(wx, 10, wz);
+    scene.add(shockMesh);
+    elimAnims3d.push({
+      mesh: shockMesh,
+      isShockwave: true,
+      expandSpeed: 80 + chargeRatio * 150,
+      life: 1, decay: 0.06 + chargeRatio * 0.02,
+    });
+
+    // 4) 히트 시 추가 — 화면 흔들림 (카메라 셰이크)
+    if (hitCount > 0) {
+      const shakeIntensity = 2 + chargeRatio * 6;
+      const shakeDuration = 150 + chargeRatio * 200;
+      shakeCamera(shakeIntensity, shakeDuration);
+
+      // 히트 플래시 링 (밝은 흰색)
+      const flashGeo = new THREE.RingGeometry(1, 4 + chargeRatio * 8, 24);
+      const flashMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 1, side: THREE.DoubleSide,
+      });
+      const flashMesh = new THREE.Mesh(flashGeo, flashMat);
+      flashMesh.rotation.x = -Math.PI / 2;
+      flashMesh.position.set(wx, 12, wz);
+      scene.add(flashMesh);
+      elimAnims3d.push({
+        mesh: flashMesh,
+        isShockwave: true,
+        expandSpeed: 120 + chargeRatio * 100,
+        life: 1, decay: 0.1,
+      });
+    }
+  }
+
+  // ─── 카메라 셰이크 ─────────────────────────────────────────────────────────
+  let cameraShake = { intensity: 0, endTime: 0 };
+
+  function shakeCamera(intensity, durationMs) {
+    cameraShake.intensity = Math.max(cameraShake.intensity, intensity);
+    cameraShake.endTime = Math.max(cameraShake.endTime, performance.now() + durationMs);
+  }
+
+  function applyCameraShake() {
+    const now = performance.now();
+    if (now < cameraShake.endTime && cameraShake.intensity > 0) {
+      const remaining = (cameraShake.endTime - now) / 300;
+      const shake = cameraShake.intensity * Math.min(1, remaining);
+      camera.position.x = (Math.random() - 0.5) * shake;
+      camera.position.z = CAM_DIST + (Math.random() - 0.5) * shake;
+    } else {
+      camera.position.x = 0;
+      camera.position.z = CAM_DIST;
+      cameraShake.intensity = 0;
+    }
+  }
+
   // 360도 충격파 링 이펙트
   function spawnShockwaveRing(sx, sy, count, color, radius, speedMult) {
     const { x: wx, z: wz } = serverToWorld(sx, sy);
@@ -1150,7 +1228,21 @@
     for (let i = elimAnims3d.length - 1; i >= 0; i--) {
       const a = elimAnims3d[i];
 
-      if (a.isCharFall) {
+      if (a.isShockwave) {
+        // 충격파 구체 — 빠르게 팽창 후 소멸
+        const expand = a.expandSpeed * dt;
+        a.mesh.scale.x += expand;
+        a.mesh.scale.y += expand;
+        a.mesh.scale.z += expand;
+        a.life -= a.decay;
+        a.mesh.material.opacity = Math.max(0, a.life * 0.8);
+        if (a.life <= 0) {
+          scene.remove(a.mesh);
+          a.mesh.geometry.dispose();
+          a.mesh.material.dispose();
+          elimAnims3d.splice(i, 1);
+        }
+      } else if (a.isCharFall) {
         // 캐릭터 낙하 애니메이션 — 팔 휘저으며 작아지며 떨어짐
         a.mesh.position.x += a.vx * dt * 20;
         a.mesh.position.y += a.vy * dt * 20;
@@ -1266,6 +1358,7 @@
 
       updateParticles3D(dt);
       updateElimAnims(dt);
+      applyCameraShake();
       updateCooldownOverlays();
       updateKillLog(dt * 1000);
 
@@ -1477,14 +1570,7 @@
       const charge = Math.min(1, (Date.now() - game.punchChargeStart) / PUNCH_MAX_CHARGE_MS);
       game.punchCharging = false;
       window.network && window.network.sendPunchRelease(charge);
-      const me = game.interpolatedPlayers[game.myId];
-      if (me) {
-        const count = Math.floor(6 + charge * 14);
-        // 360도 충격파 링 + 중심부 폭발 파티클
-        const blastColor = charge > 0.6 ? '#ff2200' : '#ff8844';
-        spawnShockwaveRing(me.x, me.y, 16 + Math.floor(charge * 16), blastColor, 8, 0.8 + charge * 1.5);
-        spawn3DParticles(me.x, me.y, Math.floor(count * 0.5), blastColor, 0.5);
-      }
+      // 임팩트 이펙트는 서버의 punch-impact 이벤트로 통일
     }
     function triggerDodge() {
       const now = Date.now();
@@ -1543,5 +1629,6 @@
     init, startGameLoop, stopGameLoop, pushServerState,
     showCountdown, addKillLogEntry, addElimAnimation,
     spawnParticles: spawn3DParticles,
+    spawnPunchImpact,
   };
 })();

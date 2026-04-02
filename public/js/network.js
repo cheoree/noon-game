@@ -25,6 +25,7 @@ class Network {
       'game-over',
       'phase-change',
       'room-update',
+      'punch-impact',
       'error',
     ];
 

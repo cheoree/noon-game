@@ -576,6 +576,7 @@ function updateBotAI(bot, room) {
       const force = PUNCH_MIN_FORCE + (PUNCH_MAX_FORCE - PUNCH_MIN_FORCE) * chargeRatio;
 
       // 360도 방사형 넉백
+      let botHitCount = 0;
       for (const t2 of room.players.values()) {
         if (t2.id === bot.id || !t2.alive || t2.isInvincible) continue;
         const hx = t2.x - bot.x;
@@ -590,7 +591,16 @@ function updateBotAI(bot, room) {
           t2.vx += Math.cos(rAngle) * force;
           t2.vy += Math.sin(rAngle) * force;
         }
+        botHitCount++;
       }
+
+      // 봇 펀치 임팩트 이벤트
+      io.to(room.code).emit('punch-impact', {
+        x: bot.x, y: bot.y,
+        chargeRatio,
+        hitCount: botHitCount,
+        playerId: bot.id,
+      });
     }
 
     // Dodge - much rarer
@@ -868,6 +878,14 @@ io.on('connection', (socket) => {
       }
       hitCount++;
     }
+
+    // 펀치 임팩트 이벤트 브로드캐스트
+    io.to(room.code).emit('punch-impact', {
+      x: player.x, y: player.y,
+      chargeRatio,
+      hitCount,
+      playerId: player.id,
+    });
 
     // 반동: 히트 수에 비례 (다수 히트 시 제자리 고정)
     if (hitCount > 0) {
