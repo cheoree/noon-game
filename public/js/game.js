@@ -1071,59 +1071,35 @@
     }
   }
 
-  // ─── 배치기 임팩트 이펙트 (빵 터지는 느낌) ────────────────────────────────
+  // ─── 배치기 임팩트 이펙트 ──────────────────────────────────────────────────
   function spawnPunchImpact(sx, sy, chargeRatio, hitCount) {
     const { x: wx, z: wz } = serverToWorld(sx, sy);
-    const intensity = 0.3 + chargeRatio * 0.7; // 차징에 비례
 
-    // 1) 충격파 링 (바닥에서 퍼져나감)
-    const ringCount = Math.floor(12 + chargeRatio * 20);
-    const ringColor = hitCount > 0
-      ? (chargeRatio > 0.6 ? '#ff2200' : '#ff8844')
-      : '#ffcc44';
-    spawnShockwaveRing(sx, sy, ringCount, ringColor, 10, 0.8 + chargeRatio * 2);
-
-    // 2) 중심부 폭발 파티클
-    const burstCount = Math.floor(8 + chargeRatio * 16);
-    spawn3DParticles(sx, sy, burstCount, ringColor, 1 + chargeRatio * 2);
-
-    // 3) 충격파 구체 (빠르게 팽창 후 소멸)
-    const shockGeo = new THREE.SphereGeometry(2, 16, 12);
-    const shockMat = new THREE.MeshBasicMaterial({
-      color: hitCount > 0 ? 0xff4400 : 0xffaa44,
-      transparent: true, opacity: 0.8,
-    });
-    const shockMesh = new THREE.Mesh(shockGeo, shockMat);
-    shockMesh.position.set(wx, 10, wz);
-    scene.add(shockMesh);
-    elimAnims3d.push({
-      mesh: shockMesh,
-      isShockwave: true,
-      expandSpeed: 80 + chargeRatio * 150,
-      life: 1, decay: 0.06 + chargeRatio * 0.02,
-    });
-
-    // 4) 히트 시 추가 — 화면 흔들림 (카메라 셰이크)
     if (hitCount > 0) {
-      const shakeIntensity = 2 + chargeRatio * 6;
-      const shakeDuration = 150 + chargeRatio * 200;
-      shakeCamera(shakeIntensity, shakeDuration);
+      // ── 히트 성공: 제대로 터지는 느낌 ──
+      const color = chargeRatio > 0.6 ? '#ff2200' : '#ff8844';
+      spawnShockwaveRing(sx, sy, 8 + Math.floor(chargeRatio * 10), color, 6, 0.6 + chargeRatio * 1.0);
+      spawn3DParticles(sx, sy, 4 + Math.floor(chargeRatio * 6), color, 0.8 + chargeRatio);
 
-      // 히트 플래시 링 (밝은 흰색)
-      const flashGeo = new THREE.RingGeometry(1, 4 + chargeRatio * 8, 24);
+      // 히트 플래시 링
+      const flashGeo = new THREE.RingGeometry(1, 2 + chargeRatio * 4, 16);
       const flashMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff, transparent: true, opacity: 1, side: THREE.DoubleSide,
+        color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
       });
       const flashMesh = new THREE.Mesh(flashGeo, flashMat);
       flashMesh.rotation.x = -Math.PI / 2;
-      flashMesh.position.set(wx, 12, wz);
+      flashMesh.position.set(wx, 8, wz);
       scene.add(flashMesh);
       elimAnims3d.push({
-        mesh: flashMesh,
-        isShockwave: true,
-        expandSpeed: 120 + chargeRatio * 100,
-        life: 1, decay: 0.1,
+        mesh: flashMesh, isShockwave: true,
+        expandSpeed: 40 + chargeRatio * 60, life: 1, decay: 0.12,
       });
+
+      // 카메라 셰이크 (가볍게)
+      shakeCamera(1 + chargeRatio * 2.5, 80 + chargeRatio * 120);
+    } else {
+      // ── 빗나감: 작은 "펑" 이펙트만 ──
+      spawn3DParticles(sx, sy, 3, '#ffcc66', 0.4);
     }
   }
 
