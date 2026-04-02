@@ -552,32 +552,43 @@ function updateBotAI(bot, room) {
       dy += (tdy / td) * personality.aggression * 0.4;
     }
 
-    // Punch if close enough - weaker and less frequent
+    // 봇 차징 시작 — 가까울 때 확률적으로 차징 개시
     if (td < personality.punchRange && !bot.punching && !bot.charging) {
       bot.facingX = tdx / td;
       bot.facingY = tdy / td;
-      // 봇 펀치 확률 (틱당 ~3-6%)
       if (Math.random() < 0.08 * personality.aggression) {
-        bot.punching = true;
-        bot.punchTicks = PUNCH_DURATION;
-        // 봇 차지: 0.2-0.7
-        const chargeRatio = 0.2 + Math.random() * 0.5;
-        const force = PUNCH_MIN_FORCE + (PUNCH_MAX_FORCE - PUNCH_MIN_FORCE) * chargeRatio;
-        for (const t2 of room.players.values()) {
-          if (t2.id === bot.id || !t2.alive || t2.isInvincible) continue;
-          const hx = t2.x - bot.x;
-          const hy = t2.y - bot.y;
-          const hd = Math.sqrt(hx * hx + hy * hy);
-          if (hd > PUNCH_RANGE) continue;
-          // 360도 방사형 넉백
-          if (hd > 0.01) {
-            t2.vx += (hx / hd) * force;
-            t2.vy += (hy / hd) * force;
-          } else {
-            const rAngle = Math.random() * Math.PI * 2;
-            t2.vx += Math.cos(rAngle) * force;
-            t2.vy += Math.sin(rAngle) * force;
-          }
+        bot.charging = true;
+        bot.chargeTicks = 0;
+        // 목표 차징 틱 설정 (0.3~1.5초 = 18~90틱)
+        bot._chargeTarget = Math.floor(18 + Math.random() * 72 * personality.aggression);
+      }
+    }
+
+    // 봇 차징 중 — 목표 틱 도달하면 릴리즈
+    if (bot.charging && bot.chargeTicks >= (bot._chargeTarget || 30)) {
+      const charge = Math.min(bot.chargeTicks, PUNCH_MAX_CHARGE);
+      bot.charging = false;
+      bot.chargeTicks = 0;
+      bot.punching = true;
+      bot.punchTicks = PUNCH_DURATION;
+
+      const chargeRatio = Math.min(1, charge / PUNCH_MAX_CHARGE);
+      const force = PUNCH_MIN_FORCE + (PUNCH_MAX_FORCE - PUNCH_MIN_FORCE) * chargeRatio;
+
+      // 360도 방사형 넉백
+      for (const t2 of room.players.values()) {
+        if (t2.id === bot.id || !t2.alive || t2.isInvincible) continue;
+        const hx = t2.x - bot.x;
+        const hy = t2.y - bot.y;
+        const hd = Math.sqrt(hx * hx + hy * hy);
+        if (hd > PUNCH_RANGE) continue;
+        if (hd > 0.01) {
+          t2.vx += (hx / hd) * force;
+          t2.vy += (hy / hd) * force;
+        } else {
+          const rAngle = Math.random() * Math.PI * 2;
+          t2.vx += Math.cos(rAngle) * force;
+          t2.vy += Math.sin(rAngle) * force;
         }
       }
     }
