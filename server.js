@@ -477,7 +477,10 @@ function resetRoomForRestart(room) {
     const emoji = pickEmoji(usedEmojis);
     usedEmojis.push(emoji);
     const color = COLOR_POOL[colorIdx % COLOR_POOL.length];
+    const wasBot = player.isBot;
     Object.assign(player, createPlayer(player.id, player.nickname, emoji, color));
+    player.isBot = wasBot;
+    player._botPersonality = null; // 새 성격 부여
     colorIdx++;
   }
 }
@@ -518,9 +521,9 @@ function updateBotAI(bot, room) {
 
   // Bot personality - much weaker and more varied
   const personality = bot._botPersonality || (bot._botPersonality = {
-    aggression: 0.15 + Math.random() * 0.5,    // 0.15-0.65 (was 0.3-1.0)
+    aggression: 0.3 + Math.random() * 0.5,      // 0.3-0.8
     wanderSpeed: 0.3 + Math.random() * 0.5,     // 0.3-0.8
-    punchRange: 40 + Math.random() * 25,         // 40-65 (was 50-80)
+    punchRange: 50 + Math.random() * 30,         // 50-80
     edgeSense: 0.75 + Math.random() * 0.15,     // 0.75-0.9 (how close to edge before retreating)
     clumsiness: Math.random() * 0.4,             // 0-0.4 (random jitter added to movement)
     phase: Math.random() * Math.PI * 2,
@@ -553,12 +556,12 @@ function updateBotAI(bot, room) {
     if (td < personality.punchRange && !bot.punching && !bot.charging) {
       bot.facingX = tdx / td;
       bot.facingY = tdy / td;
-      // Much lower punch chance
-      if (Math.random() < 0.02 * personality.aggression) {
+      // 봇 펀치 확률 (틱당 ~3-6%)
+      if (Math.random() < 0.08 * personality.aggression) {
         bot.punching = true;
         bot.punchTicks = PUNCH_DURATION;
-        // Weaker charge: 0.1-0.5 (was 0.3-1.0)
-        const chargeRatio = 0.1 + Math.random() * 0.4;
+        // 봇 차지: 0.2-0.7
+        const chargeRatio = 0.2 + Math.random() * 0.5;
         const force = PUNCH_MIN_FORCE + (PUNCH_MAX_FORCE - PUNCH_MIN_FORCE) * chargeRatio;
         for (const t2 of room.players.values()) {
           if (t2.id === bot.id || !t2.alive || t2.isInvincible) continue;

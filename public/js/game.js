@@ -1120,43 +1120,114 @@
   // ─── Elimination Animations ─────────────────────────────────────────────────
   function addElimAnimation(player) {
     const { x: wx, z: wz } = serverToWorld(player.x || 400, player.y || 400);
-    const geo = new THREE.SphereGeometry(6, 10, 8);
-    const mat = new THREE.MeshPhongMaterial({
-      color: player.color || 0xff6b6b,
-      transparent: true, opacity: 0.8,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(wx, 8, wz);
-    scene.add(mesh);
+
+    // 캐릭터 복제본으로 낙하 애니메이션 생성
+    const fallingChar = createCharacter3D(player.id + '_fall', player.color);
+    fallingChar.position.set(wx, 0, wz);
+    // 방향 설정 (아레나 바깥 방향)
+    const dirX = wx;
+    const dirZ = wz;
+    const dirMag = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
+    scene.add(fallingChar);
+
     elimAnims3d.push({
-      mesh,
-      vy: 3,
-      vx: (Math.random() - 0.5) * 2,
-      vz: (Math.random() - 0.5) * 2,
-      spin: (Math.random() - 0.5) * 0.3,
-      life: 1, decay: 0.012,
+      mesh: fallingChar,
+      isCharFall: true,
+      vx: (dirX / dirMag) * 1.5 + (Math.random() - 0.5) * 0.5,
+      vy: 2.5,
+      vz: (dirZ / dirMag) * 1.5 + (Math.random() - 0.5) * 0.5,
+      spinX: (Math.random() - 0.5) * 0.15,
+      spinZ: (Math.random() - 0.5) * 0.15,
+      armPhase: Math.random() * Math.PI * 2,
+      life: 1, decay: 0.008,
+      startScale: CHAR_SCALE,
     });
+
     spawn3DParticles(player.x || 400, player.y || 400, 20, player.color || '#ff4444', 2);
   }
 
   function updateElimAnims(dt) {
     for (let i = elimAnims3d.length - 1; i >= 0; i--) {
       const a = elimAnims3d[i];
-      a.mesh.position.x += a.vx * dt * 30;
-      a.mesh.position.y += a.vy * dt * 30;
-      a.mesh.position.z += a.vz * dt * 30;
-      a.vy -= dt * 5;
-      a.mesh.rotation.x += a.spin;
-      a.mesh.rotation.z += a.spin * 0.7;
-      a.life -= a.decay;
-      a.mesh.material.opacity = a.life * 0.8;
-      const s = a.life;
-      a.mesh.scale.set(s, s, s);
-      if (a.life <= 0) {
-        scene.remove(a.mesh);
-        a.mesh.geometry.dispose();
-        a.mesh.material.dispose();
-        elimAnims3d.splice(i, 1);
+
+      if (a.isCharFall) {
+        // 캐릭터 낙하 애니메이션 — 팔 휘저으며 작아지며 떨어짐
+        a.mesh.position.x += a.vx * dt * 20;
+        a.mesh.position.y += a.vy * dt * 20;
+        a.mesh.position.z += a.vz * dt * 20;
+        a.vy -= dt * 4; // 중력
+
+        // 구르기/회전
+        a.mesh.rotation.x += a.spinX;
+        a.mesh.rotation.z += a.spinZ;
+
+        // 팔 휘젓기 애니메이션
+        a.armPhase += dt * 18;
+        const armL = a.mesh.getObjectByName('armL');
+        const armR = a.mesh.getObjectByName('armR');
+        const handL = a.mesh.getObjectByName('handL');
+        const handR = a.mesh.getObjectByName('handR');
+        if (armL) {
+          armL.rotation.x = Math.sin(a.armPhase) * 1.5;
+          armL.rotation.z = -1.2 + Math.sin(a.armPhase * 1.3) * 0.6;
+        }
+        if (armR) {
+          armR.rotation.x = Math.sin(a.armPhase + 2) * 1.5;
+          armR.rotation.z = 1.2 + Math.sin(a.armPhase * 1.3 + 1.5) * 0.6;
+        }
+        if (handL) {
+          handL.position.set(-14, 18 + Math.sin(a.armPhase) * 6, Math.cos(a.armPhase) * 5);
+        }
+        if (handR) {
+          handR.position.set(14, 18 + Math.sin(a.armPhase + 2) * 6, Math.cos(a.armPhase + 2) * 5);
+        }
+
+        // 다리 발버둥
+        const legL = a.mesh.getObjectByName('legL');
+        const legR = a.mesh.getObjectByName('legR');
+        if (legL) legL.position.z = Math.sin(a.armPhase * 1.5) * 4;
+        if (legR) legR.position.z = Math.sin(a.armPhase * 1.5 + Math.PI) * 4;
+
+        a.life -= a.decay;
+
+        // 작아지며 사라짐
+        const s = a.startScale * a.life;
+        a.mesh.scale.set(s, s, s);
+
+        // 투명해짐
+        a.mesh.traverse(child => {
+          if (child.material) {
+            child.material.transparent = true;
+            child.material.opacity = Math.max(0, a.life);
+          }
+        });
+
+        if (a.life <= 0) {
+          a.mesh.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+          });
+          scene.remove(a.mesh);
+          elimAnims3d.splice(i, 1);
+        }
+      } else {
+        // 기존 파티클 애니메이션
+        a.mesh.position.x += a.vx * dt * 30;
+        a.mesh.position.y += a.vy * dt * 30;
+        a.mesh.position.z += a.vz * dt * 30;
+        a.vy -= dt * 5;
+        a.mesh.rotation.x += a.spin;
+        a.mesh.rotation.z += a.spin * 0.7;
+        a.life -= a.decay;
+        a.mesh.material.opacity = a.life * 0.8;
+        const s = a.life;
+        a.mesh.scale.set(s, s, s);
+        if (a.life <= 0) {
+          scene.remove(a.mesh);
+          a.mesh.geometry.dispose();
+          a.mesh.material.dispose();
+          elimAnims3d.splice(i, 1);
+        }
       }
     }
   }
