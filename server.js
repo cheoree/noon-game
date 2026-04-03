@@ -146,6 +146,7 @@ function createRoom(hostId) {
     },
     rankings: [],
     eliminationOrder: 0,
+    isSolo: false,
   };
   rooms.set(code, room);
   return room;
@@ -297,6 +298,24 @@ function eliminatePlayer(room, player) {
     killerName,
     rank: player.rank,
   });
+
+  // 솔로 모드: 사람이 죽으면 즉시 종료
+  if (room.isSolo && !player.isBot) {
+    // 남은 봇들에게 중심 거리 기준 순위 부여
+    const aliveBots = [...room.players.values()].filter(p => p.alive);
+    aliveBots.sort((a, b) => {
+      const distA = Math.sqrt((a.x - ARENA_CENTER_X) ** 2 + (a.y - ARENA_CENTER_Y) ** 2);
+      const distB = Math.sqrt((b.x - ARENA_CENTER_X) ** 2 + (b.y - ARENA_CENTER_Y) ** 2);
+      return distA - distB;
+    });
+    // 1등부터 순서대로 rank 부여
+    for (let i = 0; i < aliveBots.length; i++) {
+      aliveBots[i].rank = i + 1;
+      aliveBots[i].alive = false;
+    }
+    endGame(room, aliveBots[0] || null);
+    return;
+  }
 
   // Check win condition
   const alive = [...room.players.values()].filter(p => p.alive);
@@ -766,6 +785,7 @@ io.on('connection', (socket) => {
     socket.join(room.code);
 
     // Add 9 AI bots
+    room.isSolo = true;
     addBotsToRoom(room, 9);
 
     respond({
