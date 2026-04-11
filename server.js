@@ -33,8 +33,8 @@ const ARENA_SHRINK_END_TICK = 60 * TICK_RATE;     // tick 3600
 const GAME_MAX_TICKS = 60 * TICK_RATE;            // 60 seconds
 
 const PLAYER_RADIUS = 25;
-const MOVE_SPEED = 1.6;
-const FRICTION = 0.85;
+const MOVE_SPEED = 1.3;
+const FRICTION = 0.80;
 const PUSH_FORCE = 4;
 // const PUNCH_ARC = 0.45;     // [360도 폭발형으로 변경] 더 이상 사용하지 않음
 const CHARGE_SLOW = 0.4;       // movement speed multiplier while charging
