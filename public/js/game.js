@@ -60,6 +60,7 @@
     myId: null,
     joystick: { active: false, touchId: null, originX: 0, originY: 0, dx: 0, dy: 0 },
     punchCharging: false, punchChargeStart: 0,
+    punchTouchId: null,
     dodgeCooldownEnd: 0,
     keyboardDx: 0, keyboardDy: 0,
     elimAnimations: [], killLogEntries: [],
@@ -1557,12 +1558,38 @@
     }
 
     if (dashBtn) {
-      dashBtn.addEventListener('touchstart', e => { e.preventDefault(); startPunchCharge(); }, { passive: false });
-      dashBtn.addEventListener('touchend', e => { e.preventDefault(); releasePunch(); }, { passive: false });
-      dashBtn.addEventListener('touchcancel', e => { releasePunch(); }, { passive: false });
+      dashBtn.addEventListener('touchstart', e => {
+        e.preventDefault();
+        if (game.punchCharging) return;
+        game.punchTouchId = e.changedTouches[0].identifier;
+        startPunchCharge();
+      }, { passive: false });
       dashBtn.addEventListener('mousedown', e => { e.preventDefault(); startPunchCharge(); });
-      dashBtn.addEventListener('mouseup', e => { releasePunch(); });
+      dashBtn.addEventListener('mouseup', () => { releasePunch(); });
     }
+
+    // 버튼 밖으로 손가락이 이동해도 원래 터치면 릴리즈
+    document.addEventListener('touchend', e => {
+      if (game.punchTouchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === game.punchTouchId) {
+          game.punchTouchId = null;
+          releasePunch();
+          return;
+        }
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchcancel', e => {
+      if (game.punchTouchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === game.punchTouchId) {
+          game.punchTouchId = null;
+          releasePunch();
+          return;
+        }
+      }
+    });
     if (dodgeBtn) {
       dodgeBtn.addEventListener('touchstart', e => { e.preventDefault(); triggerDodge(); }, { passive: false });
       dodgeBtn.addEventListener('click', triggerDodge);
