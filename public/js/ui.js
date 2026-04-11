@@ -496,7 +496,13 @@ class UI {
     // -- Punch impact (배치기 폭발 이펙트) --
     net.on('punch-impact', (data) => {
       if (window.gameRenderer && typeof window.gameRenderer.spawnPunchImpact === 'function') {
-        window.gameRenderer.spawnPunchImpact(data.x, data.y, data.chargeRatio || 0, data.hitCount || 0);
+        window.gameRenderer.spawnPunchImpact(
+          data.x, data.y,
+          data.chargeRatio || 0,
+          data.hitCount || 0,
+          data.isCritical || false,
+          data.isCrossCounter || false,
+        );
       }
     });
 
