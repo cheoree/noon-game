@@ -1609,7 +1609,11 @@
     const dodgeBtn = document.getElementById('dodge-btn');
 
     function startPunchCharge() {
-      if (game.punchCharging) return;
+      // 이전 차징이 걸려있으면 강제 해제 후 재시작
+      if (game.punchCharging) {
+        game.punchCharging = false;
+        window.network && window.network.sendPunchRelease(0);
+      }
       game.punchCharging = true;
       game.punchChargeStart = Date.now();
       window.network && window.network.sendPunchStart();
@@ -1619,7 +1623,6 @@
       const charge = Math.min(1, (Date.now() - game.punchChargeStart) / PUNCH_MAX_CHARGE_MS);
       game.punchCharging = false;
       window.network && window.network.sendPunchRelease(charge);
-      // 임팩트 이펙트는 서버의 punch-impact 이벤트로 통일
     }
     function triggerDodge() {
       const now = Date.now();

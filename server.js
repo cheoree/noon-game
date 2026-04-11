@@ -842,8 +842,11 @@ io.on('connection', (socket) => {
     const room = currentRoom ? rooms.get(currentRoom) : null;
     if (!room || room.phase !== 'playing') return;
     const player = room.players.get(socket.id);
-    if (!player || !player.alive || player.punching) return;
+    if (!player || !player.alive) return;
 
+    // 펀치 애니메이션 중이어도 차징 허용 (이전 펀치 강제 종료)
+    player.punching = false;
+    player.punchTicks = 0;
     player.charging = true;
     player.chargeTicks = 0;
   });
