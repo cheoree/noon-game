@@ -27,8 +27,8 @@ const ARENA_SHRINK_END_TICK = 60 * TICK_RATE;     // tick 3600
 const GAME_MAX_TICKS = 60 * TICK_RATE;            // 60 seconds
 
 const PLAYER_RADIUS = 25;
-const MOVE_SPEED = 2;
-const FRICTION = 0.92;
+const MOVE_SPEED = 1.6;
+const FRICTION = 0.85;
 const PUSH_FORCE = 4;
 const PUNCH_MIN_FORCE = 8;     // knockback at minimum charge
 const PUNCH_MAX_FORCE = 28;    // knockback at full charge
