@@ -961,6 +961,12 @@ body::before {
   to { transform: rotate(360deg); }
 }
 
+@keyframes floatUp {
+  0%   { transform: translate(-50%, -50%) scale(1);    opacity: 1; }
+  60%  { transform: translate(-50%, -120%) scale(1.2); opacity: 1; }
+  100% { transform: translate(-50%, -180%) scale(0.8); opacity: 0; }
+}
+
 /* ============================================================
    UTILITY CLASSES
    ============================================================ */

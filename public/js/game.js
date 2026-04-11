@@ -1072,8 +1072,80 @@
     }
   }
 
+  // ─── 서버 좌표 → 화면 픽셀 변환 ──────────────────────────────────────────────
+  function serverCoordsToScreen(sx, sy) {
+    const { x: wx, z: wz } = serverToWorld(sx, sy);
+    const vec = new THREE.Vector3(wx, 0, wz);
+    vec.project(camera);
+    const el = renderer.domElement;
+    const rect = el.getBoundingClientRect();
+    return {
+      x: (vec.x + 1) / 2 * el.clientWidth  + rect.left,
+      y: (-vec.y + 1) / 2 * el.clientHeight + rect.top,
+    };
+  }
+
+  function spawnFloatingText(sx, sy, text, color, scale = 1) {
+    const { x, y } = serverCoordsToScreen(sx, sy);
+    const el = document.createElement('div');
+    el.textContent = text;
+    el.style.cssText = [
+      'position:fixed',
+      `left:${x}px`, `top:${y}px`,
+      `font-size:${Math.round(28 * scale)}px`,
+      'font-weight:900',
+      `color:${color}`,
+      'text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000',
+      'pointer-events:none',
+      'z-index:9998',
+      'animation:floatUp 0.9s ease-out forwards',
+    ].join(';');
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+
+  function spawnCriticalImpact(sx, sy) {
+    // 화면 전체 흰색 플래시
+    const flash = document.createElement('div');
+    flash.style.cssText = 'position:fixed;inset:0;background:#fff;opacity:0.8;pointer-events:none;z-index:9999;transition:opacity 0.3s ease-out';
+    document.body.appendChild(flash);
+    requestAnimationFrame(() => requestAnimationFrame(() => { flash.style.opacity = '0'; }));
+    setTimeout(() => flash.remove(), 400);
+
+    // 충격파 링 3개 연속 (55ms 간격)
+    ['#ffffff', '#ffdd00', '#ff8800'].forEach((color, i) => {
+      setTimeout(() => spawnShockwaveRing(sx, sy, 16, color, 8, 1.5), i * 55);
+    });
+
+    spawn3DParticles(sx, sy, 12, '#ffdd00', 2.0);
+    spawn3DParticles(sx, sy, 8, '#ffffff', 1.5);
+    shakeCamera(4, 300);
+    spawnFloatingText(sx, sy, 'CRITICAL!', '#ff4400', 1.2);
+  }
+
+  function spawnCrossCounterEffect(sx, sy) {
+    // 오렌지/흰색 번갈아 3회 플래시
+    ['#ff6600', '#ffffff', '#ff6600'].forEach((bg, i) => {
+      setTimeout(() => {
+        const flash = document.createElement('div');
+        flash.style.cssText = `position:fixed;inset:0;background:${bg};opacity:0.65;pointer-events:none;z-index:9999;transition:opacity 0.15s ease-out`;
+        document.body.appendChild(flash);
+        requestAnimationFrame(() => requestAnimationFrame(() => { flash.style.opacity = '0'; }));
+        setTimeout(() => flash.remove(), 250);
+      }, i * 150);
+    });
+
+    shakeCamera(6, 450);
+    spawn3DParticles(sx, sy, 20, '#ff6600', 2.5);
+    spawn3DParticles(sx, sy, 12, '#ffffff', 2.0);
+    spawnFloatingText(sx, sy, 'CLASH!!', '#ff6600', 1.6);
+  }
+
   // ─── 배치기 임팩트 이펙트 ──────────────────────────────────────────────────
-  function spawnPunchImpact(sx, sy, chargeRatio, hitCount) {
+  function spawnPunchImpact(sx, sy, chargeRatio, hitCount, isCritical = false, isCrossCounter = false) {
+    if (isCrossCounter) { spawnCrossCounterEffect(sx, sy); return; }
+    if (isCritical)     { spawnCriticalImpact(sx, sy); return; }
+
     const { x: wx, z: wz } = serverToWorld(sx, sy);
 
     if (hitCount > 0) {
