@@ -2,6 +2,12 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const {
+  calcHits,
+  PUNCH_MIN_FORCE, PUNCH_MAX_FORCE, PUNCH_RANGE,
+  PUNCH_MAX_CHARGE, PUNCH_MIN_CHARGE, PUNCH_DURATION,
+  PUNCH_CRITICAL_RANGE, PUNCH_CRITICAL_FORCE,
+} = require('./server/mechanics');
 
 // ─── App Setup ───────────────────────────────────────────────────────────────
 const app = express();
@@ -30,13 +36,7 @@ const PLAYER_RADIUS = 25;
 const MOVE_SPEED = 1.6;
 const FRICTION = 0.85;
 const PUSH_FORCE = 4;
-const PUNCH_MIN_FORCE = 8;     // knockback at minimum charge
-const PUNCH_MAX_FORCE = 28;    // knockback at full charge
-const PUNCH_RANGE = 120;       // must be close to land a punch
 // const PUNCH_ARC = 0.45;     // [360도 폭발형으로 변경] 더 이상 사용하지 않음
-const PUNCH_DURATION = 15;     // ticks of punch animation
-const PUNCH_MAX_CHARGE = 120;  // max charge ticks (2 seconds)
-const PUNCH_MIN_CHARGE = 6;    // min charge to fire (0.1 sec)
 const CHARGE_SLOW = 0.4;       // movement speed multiplier while charging
 
 const DODGE_DURATION = 15;     // ticks
@@ -106,6 +106,7 @@ function createPlayer(id, nickname, emoji, color) {
     // Punch state
     charging: false,
     chargeTicks: 0,
+    receivedCritFrom: null,   // 크로스카운터 감지용: { id, tick }
     punching: false,
     punchTicks: 0,
     // Dodge state
@@ -857,57 +858,45 @@ io.on('connection', (socket) => {
     player.charging = false;
     player.chargeTicks = 0;
 
-    // Must have minimum charge
     if (charge < PUNCH_MIN_CHARGE) return;
 
-    // Start punch animation
     player.punching = true;
     player.punchTicks = PUNCH_DURATION;
 
     const chargeRatio = Math.min(1, charge / PUNCH_MAX_CHARGE);
-    const punchForce = PUNCH_MIN_FORCE + (PUNCH_MAX_FORCE - PUNCH_MIN_FORCE) * chargeRatio;
 
-    // Facing direction
-    const fx = player.facingX;
-    const fy = player.facingY;
-    const fMag = Math.sqrt(fx * fx + fy * fy);
-    const nfx = fMag > 0.01 ? fx / fMag : 1;
-    const nfy = fMag > 0.01 ? fy / fMag : 0;
+    const hits = calcHits(player, room.players.values(), room.tick);
 
-    // 360도 폭발형 — 범위 내 모든 적에게 방사형 넉백
     let hitCount = 0;
-    for (const target of room.players.values()) {
-      if (target.id === player.id || !target.alive) continue;
-      if (target.isInvincible) continue;
+    let hasCritical = false;
+    let hasCrossCounter = false;
 
-      const dx = target.x - player.x;
-      const dy = target.y - player.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist > PUNCH_RANGE) continue;
-
-      // 방사형 넉백: 펀처→타겟 방향으로 밀어냄
-      if (dist > 0.01) {
-        target.vx += (dx / dist) * punchForce;
-        target.vy += (dy / dist) * punchForce;
-      } else {
-        // 완전 겹친 경우 랜덤 방향
-        const rAngle = Math.random() * Math.PI * 2;
-        target.vx += Math.cos(rAngle) * punchForce;
-        target.vy += Math.sin(rAngle) * punchForce;
-      }
+    for (const hit of hits) {
+      const { target, force, nx, ny, isCritical, isCrossCounter } = hit;
+      target.vx += nx * force;
+      target.vy += ny * force;
       hitCount++;
+      if (isCritical) {
+        hasCritical = true;
+        target.receivedCritFrom = { id: player.id, tick: room.tick };
+      }
+      if (isCrossCounter) hasCrossCounter = true;
     }
 
-    // 펀치 임팩트 이벤트 브로드캐스트
     io.to(room.code).emit('punch-impact', {
       x: player.x, y: player.y,
       chargeRatio,
       hitCount,
       playerId: player.id,
+      isCritical: hasCritical,
+      isCrossCounter: hasCrossCounter,
     });
 
-    // 반동: 히트 수에 비례 (다수 히트 시 제자리 고정)
+    // 반동: 히트 수에 비례
+    const fx = player.facingX, fy = player.facingY;
+    const fMag = Math.sqrt(fx * fx + fy * fy);
+    const nfx = fMag > 0.01 ? fx / fMag : 1;
+    const nfy = fMag > 0.01 ? fy / fMag : 0;
     if (hitCount > 0) {
       player.vx -= nfx * Math.min(hitCount * 2, 6);
       player.vy -= nfy * Math.min(hitCount * 2, 6);
