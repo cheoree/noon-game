@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const path = require('path');
 const {
   calcHits,
+  calcAttackHits, chooseAttackType, ATTACKS,
   PUNCH_MIN_FORCE, PUNCH_MAX_FORCE, PUNCH_RANGE,
   PUNCH_MAX_CHARGE, PUNCH_MIN_CHARGE, PUNCH_DURATION,
   PUNCH_CRITICAL_RANGE, PUNCH_CRITICAL_FORCE,
@@ -66,6 +67,7 @@ const BOT_NAMES = [
 ];
 
 const INPUT_RATE_LIMIT = 120; // max inputs per second per player
+const HIT_REACT_TICKS = 12;
 
 // ─── Room Storage ────────────────────────────────────────────────────────────
 const rooms = new Map();
@@ -109,6 +111,22 @@ function createPlayer(id, nickname, emoji, color) {
     receivedCritFrom: null,   // 크로스카운터 감지용: { id, tick }
     punching: false,
     punchTicks: 0,
+    // Brawl combat state
+    combatState: 'idle',
+    combatTicks: 0,
+    combatFrame: 0,
+    attackId: 0,
+    attackType: null,
+    attackFamily: null,
+    attackHand: 'right',
+    lastPunchHand: 'left',
+    attackDirX: 1,
+    attackDirY: 0,
+    hitstunTicks: 0,
+    hitReactX: 0,
+    hitReactY: 0,
+    hitReactTicks: 0,
+    hitTargets: new Set(),
     // Dodge state
     dodging: false,
     dodgeTicks: 0,
@@ -161,6 +179,118 @@ function getArenaRadius(tick) {
   return ARENA_INITIAL_RADIUS - (ARENA_INITIAL_RADIUS - ARENA_MIN_RADIUS) * progress;
 }
 
+function isCombatBusy(player) {
+  return player.hitstunTicks > 0 || (player.combatState !== 'idle' && player.combatState !== 'dodge');
+}
+
+function startAttack(player, room, family) {
+  if (!player.alive || isCombatBusy(player) || player.dodging) return false;
+
+  const attackType = chooseAttackType(player, room.players.values(), family);
+  const attack = ATTACKS[attackType];
+  if (!attack) return false;
+
+  const fMag = Math.sqrt(player.facingX * player.facingX + player.facingY * player.facingY);
+  const dirX = fMag > 0.01 ? player.facingX / fMag : 1;
+  const dirY = fMag > 0.01 ? player.facingY / fMag : 0;
+
+  player.combatState = attackType;
+  player.combatTicks = attack.startup + attack.active + attack.recovery;
+  player.combatFrame = 0;
+  player.attackId++;
+  player.attackType = attackType;
+  player.attackFamily = attack.family;
+  if (attack.family === 'punch') {
+    player.attackHand = player.lastPunchHand === 'right' ? 'left' : 'right';
+    player.lastPunchHand = player.attackHand;
+  } else {
+    player.attackHand = 'right';
+  }
+  player.attackDirX = dirX;
+  player.attackDirY = dirY;
+  player.hitTargets = new Set();
+
+  // 기존 punch 애니메이션 플래그를 잠시 같이 켜서 구버전 이펙트 의존성을 줄인다.
+  player.punching = attack.family === 'punch';
+  player.punchTicks = attack.startup + attack.active;
+  player.charging = false;
+  player.chargeTicks = 0;
+  return true;
+}
+
+function finishAttack(player) {
+  player.combatState = 'idle';
+  player.combatTicks = 0;
+  player.combatFrame = 0;
+  player.attackType = null;
+  player.attackFamily = null;
+  player.attackHand = 'right';
+  player.hitTargets = new Set();
+}
+
+function updateCombat(player, room) {
+  if (!player.alive) return;
+
+  if (player.hitReactTicks > 0) player.hitReactTicks--;
+  if (player.hitstunTicks > 0) {
+    player.hitstunTicks--;
+    if (player.hitstunTicks === 0 && player.combatState === 'hitstun') {
+      player.combatState = 'idle';
+    }
+  }
+
+  if (!player.attackType) return;
+
+  const attack = ATTACKS[player.attackType];
+  if (!attack) {
+    finishAttack(player);
+    return;
+  }
+
+  player.combatFrame++;
+  player.combatTicks = Math.max(0, player.combatTicks - 1);
+
+  const activeStart = attack.startup + 1;
+  const activeEnd = attack.startup + attack.active;
+  if (player.combatFrame >= activeStart && player.combatFrame <= activeEnd) {
+    const hits = calcAttackHits(player, room.players.values(), player.attackType, player.hitTargets);
+    for (const hit of hits) {
+      const { target, force, nx, ny, attack: hitAttack } = hit;
+      target.vx += nx * force;
+      target.vy += ny * force;
+      target.hitstunTicks = Math.max(target.hitstunTicks || 0, hitAttack.hitstun);
+      target.combatState = 'hitstun';
+      target.hitReactX = nx;
+      target.hitReactY = ny;
+      target.hitReactTicks = HIT_REACT_TICKS;
+      target.charging = false;
+      target.punching = false;
+      target.combatTicks = 0;
+      target.combatFrame = 0;
+      target.attackType = null;
+      target.attackFamily = null;
+      target.attackHand = 'right';
+      target.hitTargets = new Set();
+      player.hitTargets.add(target.id);
+    }
+
+    if (hits.length > 0) {
+      io.to(room.code).emit('combat-impact', {
+        x: player.x,
+        y: player.y,
+        playerId: player.id,
+        attackType: player.attackType,
+        attackFamily: player.attackFamily,
+        hitCount: hits.length,
+      });
+    }
+  }
+
+  if (player.combatTicks <= 0) {
+    finishAttack(player);
+  }
+}
+
 function updatePlayer(player) {
   if (!player.alive) return;
 
@@ -190,8 +320,14 @@ function updatePlayer(player) {
     }
   }
 
-  // Apply movement input (slower while charging)
-  const speedMult = player.charging ? CHARGE_SLOW : 1;
+  // Apply movement input (slower while charging, attacking, or stunned)
+  let speedMult = player.charging ? CHARGE_SLOW : 1;
+  if (player.attackType && ATTACKS[player.attackType]) {
+    speedMult = Math.min(speedMult, ATTACKS[player.attackType].selfSlow);
+  }
+  if (player.hitstunTicks > 0) {
+    speedMult = Math.min(speedMult, 0.25);
+  }
   player.vx += player.inputDx * MOVE_SPEED * speedMult;
   player.vy += player.inputDy * MOVE_SPEED * speedMult;
 
@@ -408,6 +544,11 @@ function gameTick(room) {
     updatePlayer(player);
   }
 
+  // Update combat after movement so active frames use fresh positions
+  for (const player of playerList) {
+    updateCombat(player, room);
+  }
+
   // Resolve collisions
   resolveCollisions(playerList);
 
@@ -456,6 +597,17 @@ function broadcastGameState(room) {
     punching: p.punching,
     charging: p.charging,
     chargeRatio: p.charging ? Math.min(1, p.chargeTicks / PUNCH_MAX_CHARGE) : 0,
+    combatState: p.combatState,
+    combatFrame: p.combatFrame,
+    attackType: p.attackType,
+    attackFamily: p.attackFamily,
+    attackHand: p.attackHand,
+    attackDirX: p.attackDirX,
+    attackDirY: p.attackDirY,
+    hitstunTicks: p.hitstunTicks,
+    hitReactX: p.hitReactX,
+    hitReactY: p.hitReactY,
+    hitReactTicks: p.hitReactTicks,
     dodging: p.dodging,
     isInvincible: p.isInvincible,
     dodgeCooldown: p.dodgeCooldown,
@@ -572,59 +724,17 @@ function updateBotAI(bot, room) {
       dy += (tdy / td) * personality.aggression * 0.4;
     }
 
-    // 봇 차징 시작 — 가까울 때 확률적으로 차징 개시
-    if (td < personality.punchRange && !bot.punching && !bot.charging) {
+    // 봇 공격 — 가까울 때 확률적으로 주먹/킥 선택
+    if (td < 120 && !isCombatBusy(bot) && !bot.dodging) {
       bot.facingX = tdx / td;
       bot.facingY = tdy / td;
-      if (Math.random() < 0.08 * personality.aggression) {
-        bot.charging = true;
-        bot.chargeTicks = 0;
-        // 목표 차징 틱 설정 (0.3~1.5초 = 18~90틱)
-        bot._chargeTarget = Math.floor(18 + Math.random() * 72 * personality.aggression);
+      if (Math.random() < 0.035 * personality.aggression) {
+        startAttack(bot, room, td > 75 && Math.random() < 0.55 ? 'kick' : 'punch');
       }
-    }
-
-    // 봇 차징 중 — 목표 틱 도달하면 릴리즈
-    if (bot.charging && bot.chargeTicks >= (bot._chargeTarget || 30)) {
-      const charge = Math.min(bot.chargeTicks, PUNCH_MAX_CHARGE);
-      bot.charging = false;
-      bot.chargeTicks = 0;
-      bot.punching = true;
-      bot.punchTicks = PUNCH_DURATION;
-
-      const chargeRatio = Math.min(1, charge / PUNCH_MAX_CHARGE);
-      const force = PUNCH_MIN_FORCE + (PUNCH_MAX_FORCE - PUNCH_MIN_FORCE) * chargeRatio;
-
-      // 360도 방사형 넉백
-      let botHitCount = 0;
-      for (const t2 of room.players.values()) {
-        if (t2.id === bot.id || !t2.alive || t2.isInvincible) continue;
-        const hx = t2.x - bot.x;
-        const hy = t2.y - bot.y;
-        const hd = Math.sqrt(hx * hx + hy * hy);
-        if (hd > PUNCH_RANGE) continue;
-        if (hd > 0.01) {
-          t2.vx += (hx / hd) * force;
-          t2.vy += (hy / hd) * force;
-        } else {
-          const rAngle = Math.random() * Math.PI * 2;
-          t2.vx += Math.cos(rAngle) * force;
-          t2.vy += Math.sin(rAngle) * force;
-        }
-        botHitCount++;
-      }
-
-      // 봇 펀치 임팩트 이벤트
-      io.to(room.code).emit('punch-impact', {
-        x: bot.x, y: bot.y,
-        chargeRatio,
-        hitCount: botHitCount,
-        playerId: bot.id,
-      });
     }
 
     // Dodge - much rarer
-    if (target.charging && td < 60 && !bot.dodging && bot.dodgeCooldown <= 0 && Math.random() < 0.01) {
+    if (target.attackType && td < 60 && !bot.dodging && bot.dodgeCooldown <= 0 && Math.random() < 0.01) {
       bot.dodging = true;
       bot.dodgeTicks = DODGE_DURATION;
       bot.dodgeCooldown = DODGE_COOLDOWN;
@@ -837,6 +947,20 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ── Brawl Attack (mobile: punch / kick) ──────────────────────────────────
+  socket.on('attack', (data) => {
+    const room = currentRoom ? rooms.get(currentRoom) : null;
+    if (!room || room.phase !== 'playing') return;
+
+    const player = room.players.get(socket.id);
+    if (!player || !player.alive) return;
+
+    const family = data && data.family;
+    if (family !== 'punch' && family !== 'kick') return;
+
+    startAttack(player, room, family);
+  });
+
   // ── Charged Punch ────────────────────────────────────────────────────────
   socket.on('punch-start', () => {
     const room = currentRoom ? rooms.get(currentRoom) : null;
@@ -912,11 +1036,7 @@ io.on('connection', (socket) => {
     if (!room || room.phase !== 'playing') return;
     const player = room.players.get(socket.id);
     if (!player || !player.alive) return;
-    // Treat as a quick jab
-    player.punching = true;
-    player.punchTicks = PUNCH_DURATION;
-    player.charging = false;
-    player.chargeTicks = 0;
+    startAttack(player, room, 'punch');
   });
 
   // ── Dodge ────────────────────────────────────────────────────────────────

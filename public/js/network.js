@@ -26,6 +26,7 @@ class Network {
       'phase-change',
       'room-update',
       'punch-impact',
+      'combat-impact',
       'error',
     ];
 
@@ -126,6 +127,10 @@ class Network {
 
   sendDash() {
     this.socket.emit('dash');
+  }
+
+  sendAttack(family) {
+    this.socket.emit('attack', { family });
   }
 
   sendPunchStart() {

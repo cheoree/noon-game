@@ -252,166 +252,166 @@
 
     const group = new THREE.Group();
 
-    // Main body material
-    const bodyMat = new THREE.MeshPhongMaterial({
-      color: col, specular: 0x333333, shininess: 45,
+    // Main character materials: soft vinyl finish with simple Fall Guys-like readability.
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: col,
+      roughness: 0.42,
+      metalness: 0.02,
+      emissive: col.clone().multiplyScalar(0.04),
     });
-    const bellyMat = new THREE.MeshPhongMaterial({
-      color: colLight, specular: 0x444444, shininess: 50,
+    const panelMat = new THREE.MeshStandardMaterial({
+      color: 0x111523,
+      roughness: 0.32,
+      metalness: 0.03,
     });
-    const darkMat = new THREE.MeshPhongMaterial({ color: colDark, shininess: 25 });
+    const eyeWhiteMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.18,
+      metalness: 0.02,
+      emissive: 0x111111,
+    });
+    const accentMat = new THREE.MeshStandardMaterial({
+      color: colLight,
+      roughness: 0.5,
+      metalness: 0.01,
+    });
+    const gloveMat = new THREE.MeshStandardMaterial({
+      color: col.clone().lerp(new THREE.Color(0xffffff), 0.55),
+      roughness: 0.46,
+      metalness: 0.01,
+    });
+    const shoeMat = new THREE.MeshStandardMaterial({
+      color: colDark.clone().multiplyScalar(0.75),
+      roughness: 0.55,
+      metalness: 0.01,
+    });
+    const soleMat = new THREE.MeshStandardMaterial({
+      color: 0x171a22,
+      roughness: 0.62,
+      metalness: 0.01,
+    });
 
-    // === BEAN BODY (single tall capsule - the entire character) ===
-    const bodyGeo = new THREE.SphereGeometry(10, 20, 16);
-    bodyGeo.scale(1, 1.65, 0.95);
+    // === BEAN BODY ===
+    const bodyGeo = new THREE.SphereGeometry(10, 36, 28);
+    bodyGeo.scale(1.05, 1.72, 0.92);
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.y = 17;
     body.castShadow = true;
     body.name = 'body';
     group.add(body);
 
-    // === BELLY PATCH (lighter front panel, Fall Guys style) ===
+    // === FACE PLATE ===
+    const facePanelGeo = new THREE.SphereGeometry(6.9, 32, 18);
+    facePanelGeo.scale(1.06, 0.72, 0.18);
+    const facePanel = new THREE.Mesh(facePanelGeo, panelMat);
+    facePanel.position.set(0, 24.2, 8.95);
+    facePanel.name = 'facePanel';
+    facePanel.castShadow = false;
+    group.add(facePanel);
+
+    // Tiny glossy catchlight on the face plate keeps the panel from looking flat.
+    const faceShineGeo = new THREE.SphereGeometry(1.3, 16, 8);
+    faceShineGeo.scale(1.8, 0.45, 0.05);
+    const faceShineMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+    });
+    const faceShine = new THREE.Mesh(faceShineGeo, faceShineMat);
+    faceShine.position.set(-2.4, 27.1, 9.75);
+    faceShine.rotation.z = -0.18;
+    faceShine.name = 'faceShine';
+    group.add(faceShine);
+
+    // === COSTUME ACCENT PATCH ===
     const pattern = PATTERNS[patternIdx];
-    if (pattern === 'belly' || pattern === 'twoTone') {
-      const bellyGeo = new THREE.SphereGeometry(9.2, 16, 12, 0, Math.PI * 2, 0.3, 1.2);
-      bellyGeo.scale(0.85, 1.55, 0.7);
-      const belly = new THREE.Mesh(bellyGeo, bellyMat);
-      belly.position.set(0, 17, 2);
+    if (pattern === 'belly' || pattern === 'twoTone' || pattern === 'gradient') {
+      const bellyGeo = new THREE.SphereGeometry(5.7, 24, 12);
+      bellyGeo.scale(1.0, 0.72, 0.12);
+      const belly = new THREE.Mesh(bellyGeo, accentMat);
+      belly.position.set(0, 14.1, 8.35);
       belly.name = 'belly';
       group.add(belly);
     }
     if (pattern === 'stripe') {
-      const stripeGeo = new THREE.CylinderGeometry(10.3, 10.3, 3, 16);
-      const stripeMat = new THREE.MeshPhongMaterial({ color: colLight, shininess: 40 });
-      const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-      stripe.position.y = 18;
+      const stripeGeo = new THREE.TorusGeometry(8.9, 0.65, 8, 48);
+      const stripe = new THREE.Mesh(stripeGeo, accentMat);
+      stripe.rotation.x = Math.PI / 2;
+      stripe.position.y = 14.6;
       stripe.name = 'stripe';
       group.add(stripe);
     }
 
-    // === EYES (on upper body front, big and cute) ===
-    const eyeWhiteMat = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 80 });
-    const pupilMat = new THREE.MeshPhongMaterial({ color: 0x111122 });
-    const face = FACES[faceIdx];
-
+    // === EYES: clean white beans on a black face plate ===
     [-1, 1].forEach((side) => {
       const eyeGroup = new THREE.Group();
-      eyeGroup.position.set(side * 3.5, 24.5, 8);
+      eyeGroup.position.set(side * 2.45, 24.8, 10.05);
       eyeGroup.name = side < 0 ? 'eyeL' : 'eyeR';
 
-      if (face.eyes === 'round') {
-        // Big round eyes (classic Fall Guys)
-        const eyeGeo = new THREE.SphereGeometry(2.8, 12, 10);
-        const eyeMesh = new THREE.Mesh(eyeGeo, eyeWhiteMat);
-        eyeGroup.add(eyeMesh);
-        // Pupil
-        const pupilGeo = new THREE.SphereGeometry(1.6, 8, 8);
-        const pupil = new THREE.Mesh(pupilGeo, pupilMat);
-        pupil.position.z = 1.5;
-        pupil.name = 'pupil';
-        eyeGroup.add(pupil);
-      } else if (face.eyes === 'happy') {
-        // Happy curved eyes (^ ^)
-        const eyeGeo = new THREE.TorusGeometry(2, 0.6, 6, 12, Math.PI);
-        const eyeMesh = new THREE.Mesh(eyeGeo, pupilMat);
-        eyeMesh.rotation.z = Math.PI;
-        eyeGroup.add(eyeMesh);
-      } else if (face.eyes === 'dot') {
-        // Small dot eyes
-        const eyeGeo = new THREE.SphereGeometry(1.4, 8, 8);
-        const eyeMesh = new THREE.Mesh(eyeGeo, pupilMat);
-        eyeGroup.add(eyeMesh);
-      }
+      const eyeGeo = new THREE.SphereGeometry(1.35, 18, 12);
+      eyeGeo.scale(0.72, 1.35, 0.16);
+      const eyeMesh = new THREE.Mesh(eyeGeo, eyeWhiteMat);
+      eyeMesh.name = 'eyeWhite';
+      eyeMesh.rotation.z = side * 0.08;
+      eyeGroup.add(eyeMesh);
 
       group.add(eyeGroup);
     });
 
-    // === MOUTH ===
+    // Fall Guys-like characters do not need a mouth; keep the node for animation code.
     const mouthGroup = new THREE.Group();
     mouthGroup.position.set(0, 20.5, 9);
     mouthGroup.name = 'mouth';
-    const mouthType = face.mouth;
-
-    if (mouthType === 'smile') {
-      const curve = new THREE.TorusGeometry(1.8, 0.4, 6, 12, Math.PI);
-      const curveMat = new THREE.MeshPhongMaterial({ color: 0x442222 });
-      const mouthMesh = new THREE.Mesh(curve, curveMat);
-      mouthMesh.rotation.z = Math.PI;
-      mouthGroup.add(mouthMesh);
-    } else if (mouthType === 'open') {
-      const mGeo = new THREE.SphereGeometry(1.8, 10, 8);
-      mGeo.scale(1, 0.8, 0.5);
-      const mMat = new THREE.MeshPhongMaterial({ color: 0x331111 });
-      const mouth = new THREE.Mesh(mGeo, mMat);
-      mouthGroup.add(mouth);
-      // Tongue
-      const tongGeo = new THREE.SphereGeometry(1, 8, 8);
-      tongGeo.scale(1, 0.5, 0.7);
-      const tongMat = new THREE.MeshPhongMaterial({ color: 0xcc5555 });
-      const tongue = new THREE.Mesh(tongGeo, tongMat);
-      tongue.position.set(0, -0.4, 0.2);
-      mouthGroup.add(tongue);
-    } else if (mouthType === 'grin') {
-      const mGeo = new THREE.SphereGeometry(2.5, 10, 8);
-      mGeo.scale(1, 0.6, 0.4);
-      const mMat = new THREE.MeshPhongMaterial({ color: 0x331111 });
-      const mouth = new THREE.Mesh(mGeo, mMat);
-      mouthGroup.add(mouth);
-    } else if (mouthType === 'cat') {
-      // Cat mouth (w shape) - two small arcs
-      [-1, 1].forEach(side => {
-        const arc = new THREE.TorusGeometry(1.2, 0.35, 6, 8, Math.PI);
-        const arcMat = new THREE.MeshPhongMaterial({ color: 0x442222 });
-        const arcMesh = new THREE.Mesh(arc, arcMat);
-        arcMesh.rotation.z = Math.PI;
-        arcMesh.position.x = side * 1.2;
-        mouthGroup.add(arcMesh);
-      });
-    } else if (mouthType === 'o') {
-      const oGeo = new THREE.TorusGeometry(1.2, 0.4, 8, 12);
-      const oMat = new THREE.MeshPhongMaterial({ color: 0x331111 });
-      const oMesh = new THREE.Mesh(oGeo, oMat);
-      mouthGroup.add(oMesh);
-    }
     group.add(mouthGroup);
 
-    // === ARMS (small stumpy, Fall Guys style) ===
+    // === ARMS: short costume sleeves with round mitten hands ===
     [-1, 1].forEach(side => {
-      const armGeo = new THREE.SphereGeometry(2.2, 8, 6);
-      armGeo.scale(0.7, 1.1, 0.7);
+      const armGeo = new THREE.SphereGeometry(2.15, 18, 12);
+      armGeo.scale(0.72, 1.7, 0.72);
       const arm = new THREE.Mesh(armGeo, bodyMat);
-      arm.position.set(side * 10, 18, 0);
-      arm.rotation.z = side * 0.4;
+      arm.position.set(side * 10.1, 17.4, 1.2);
+      arm.rotation.z = side * -0.35;
       arm.castShadow = true;
       arm.name = side < 0 ? 'armL' : 'armR';
       group.add(arm);
 
-      const handGeo = new THREE.SphereGeometry(1.8, 8, 6);
-      const hand = new THREE.Mesh(handGeo, bodyMat);
-      hand.position.set(side * 12, 14, 0);
+      const handGeo = new THREE.SphereGeometry(2.45, 20, 14);
+      handGeo.scale(1.05, 0.9, 0.95);
+      const hand = new THREE.Mesh(handGeo, gloveMat);
+      hand.position.set(side * 11.8, 13.3, 1.3);
+      hand.castShadow = true;
       hand.name = side < 0 ? 'handL' : 'handR';
       group.add(hand);
     });
 
-    // === LEGS (short thick, Fall Guys style) ===
+    // === LEGS: small hidden stubs under the bean ===
     [-1, 1].forEach(side => {
-      const legGeo = new THREE.SphereGeometry(3.5, 10, 8);
-      legGeo.scale(0.9, 1.4, 0.9);
-      const leg = new THREE.Mesh(legGeo, darkMat);
-      leg.position.set(side * 4.5, 5, 0);
+      const legGeo = new THREE.SphereGeometry(2.8, 18, 12);
+      legGeo.scale(0.9, 1.2, 0.82);
+      const leg = new THREE.Mesh(legGeo, bodyMat);
+      leg.position.set(side * 4.1, 5.2, 0.1);
       leg.castShadow = true;
       leg.name = side < 0 ? 'legL' : 'legR';
       group.add(leg);
     });
 
-    // === FEET (round, chunky) ===
+    // === FEET: chunky dark shoes with tiny soles ===
     [-1, 1].forEach(side => {
-      const footGeo = new THREE.SphereGeometry(3.5, 10, 8);
-      footGeo.scale(1.1, 0.45, 1.3);
-      const foot = new THREE.Mesh(footGeo, darkMat);
-      foot.position.set(side * 4.5, 1.2, 1);
+      const footGeo = new THREE.SphereGeometry(3.25, 22, 14);
+      footGeo.scale(1.18, 0.48, 1.42);
+      const foot = new THREE.Mesh(footGeo, shoeMat);
+      foot.position.set(side * 4.4, 1.45, 1.6);
       foot.castShadow = true;
       foot.name = side < 0 ? 'footL' : 'footR';
+
+      const soleGeo = new THREE.SphereGeometry(2.9, 16, 8);
+      soleGeo.scale(1.15, 0.16, 1.35);
+      const sole = new THREE.Mesh(soleGeo, soleMat);
+      sole.position.set(0, -1.05, 0.15);
+      sole.name = side < 0 ? 'soleL' : 'soleR';
+      foot.add(sole);
+
       group.add(foot);
     });
 
@@ -676,19 +676,67 @@
 
     // Body wobble & bob
     const body = group.getObjectByName('body');
+    const facePanel = group.getObjectByName('facePanel');
+    const faceShine = group.getObjectByName('faceShine');
     const belly = group.getObjectByName('belly');
     const wobble = speed > 0.2 ? Math.sin(a.wobblePhase) * WOBBLE_AMP * Math.min(speed * 0.5, 1) : 0;
     const idleBob = speed < 0.3 ? Math.sin(a.idlePhase) * IDLE_BOB_AMP : 0;
     const walkBounce = speed > 0.2 ? Math.abs(Math.sin(a.walkPhase * 2)) * 0.8 : 0;
     const chargeRatio = player.chargeRatio || 0;
+    const attackType = player.attackType || null;
+    const attackFrame = player.combatFrame || 0;
+    const isStraight = attackType === 'straight';
+    const isHook = attackType === 'hook';
+    const isFrontKick = attackType === 'frontKick';
+    const isRoundKick = attackType === 'roundKick';
+    const isBrawlAttack = isStraight || isHook || isFrontKick || isRoundKick;
+    const isHitReact = (player.hitReactTicks || 0) > 0 || player.combatState === 'hitstun';
+    const chargeYOffset = player.charging ? chargeRatio * 3 : 0;
+    const attackHand = player.attackHand === 'left' ? 'left' : 'right';
+    const isLeftPunch = (isStraight || isHook) && attackHand === 'left';
+    const isRightPunch = (isStraight || isHook) && attackHand !== 'left';
+    const punchSnap = Math.min(1, attackFrame / 2);
+    const hookSnap = Math.min(1, attackFrame / 3);
+    const hookSwing = Math.sin(hookSnap * Math.PI);
+    const kickSnap = Math.min(1, attackFrame / 3);
+    const roundSnap = Math.min(1, attackFrame / 4);
+    const roundSwing = Math.sin(roundSnap * Math.PI);
 
     if (body) {
-      if (player.teetering) {
+      if (isHitReact) {
+        // 맞은 방향으로 말랑하게 눌리는 피격 리액션
+        const rx = player.hitReactX || 0;
+        const ry = player.hitReactY || 0;
+        body.rotation.x = -ry * 0.35 + Math.sin(ts * 28) * 0.04;
+        body.rotation.z = rx * 0.35 + Math.sin(ts * 24) * 0.04;
+        body.position.y = 16 + Math.sin(ts * 20) * 0.8;
+        body.scale.set(1.25, 0.72, 1.15);
+      } else if (player.teetering) {
         // Frantic wobble when on the edge
         body.rotation.z = Math.sin(ts * 12) * 0.4;
         body.rotation.x = Math.sin(ts * 10 + 1) * 0.25;
         body.position.y = 17 + Math.sin(ts * 8) * 1.5;
         body.scale.set(1, 1, 1);
+      } else if (isStraight) {
+        body.rotation.x = 0.18 + punchSnap * 0.28;
+        body.rotation.z = Math.sin(ts * 18) * 0.05;
+        body.position.y = 17 + punchSnap * 1.3;
+        body.scale.set(1.05, 0.95, 1.12);
+      } else if (isHook) {
+        body.rotation.y = hookSwing * (isLeftPunch ? -0.48 : 0.48);
+        body.rotation.z = hookSwing * (isLeftPunch ? -0.38 : 0.38);
+        body.position.y = 17 + hookSwing * 1.1;
+        body.scale.set(1.12, 0.9, 1.12);
+      } else if (isFrontKick) {
+        body.rotation.x = -0.18 - kickSnap * 0.38;
+        body.rotation.z = Math.sin(ts * 12) * 0.08;
+        body.position.y = 17.4 + kickSnap * 0.8;
+        body.scale.set(0.95, 1.05, 1.05);
+      } else if (isRoundKick) {
+        body.rotation.y = roundSwing * 0.65;
+        body.rotation.z = roundSwing * 0.32;
+        body.position.y = 17.4 + roundSwing * 1.2;
+        body.scale.set(1.05, 0.95, 1.18);
       } else if (player.charging) {
         // 풍선 부풀기 + 느린 회전 차징 애니메이션
         const scaleXZ = 1 + chargeRatio * 0.3;
@@ -731,13 +779,26 @@
         const scaleXZ = 1 + chargeRatio * 0.3;
         const scaleY = 1 + chargeRatio * 0.4;
         belly.scale.set(scaleXZ, scaleY, scaleXZ);
-        belly.position.y = 17 + chargeRatio * 3;
+        belly.position.y = 14.1 + chargeRatio * 1.5;
         belly.rotation.z = 0;
       } else {
         belly.scale.set(1, 1, 1);
-        belly.position.y = 17 + idleBob + walkBounce;
-        belly.rotation.z = wobble;
+        belly.position.y = 14.1 + idleBob + walkBounce * 0.55;
+        belly.rotation.z = wobble * 0.65;
       }
+    }
+    if (facePanel) {
+      facePanel.position.y = 24.2 + idleBob + walkBounce * 0.45 + chargeYOffset;
+      facePanel.rotation.z = isHitReact ? body.rotation.z * 0.55 : wobble * 0.25;
+      facePanel.scale.set(
+        isHitReact ? 1.08 : 1,
+        isHitReact ? 0.86 : 1,
+        1
+      );
+    }
+    if (faceShine) {
+      faceShine.position.y = 27.1 + idleBob + walkBounce * 0.45 + chargeYOffset;
+      faceShine.rotation.z = -0.18 + wobble * 0.2;
     }
 
     // Legs walk cycle
@@ -748,19 +809,50 @@
     const footR = group.getObjectByName('footR');
     if (legL && legR) {
       const lift = speed > 0.2 ? WALK_LIFT : 0;
-      const stride = speed > 0.2 ? 2.5 : 0;
-      legL.position.y = 5 + Math.max(0, walkSin) * lift * 3;
-      legL.position.z = walkSin * stride;
-      legR.position.y = 5 + Math.max(0, -walkSin) * lift * 3;
-      legR.position.z = -walkSin * stride;
+      const stride = speed > 0.2 ? 2.1 : 0;
+      legL.position.y = 5.2 + Math.max(0, walkSin) * lift * 2.2;
+      legL.position.z = 0.1 + walkSin * stride;
+      legR.position.y = 5.2 + Math.max(0, -walkSin) * lift * 2.2;
+      legR.position.z = 0.1 - walkSin * stride;
     }
     if (footL && footR) {
       const lift = speed > 0.2 ? WALK_LIFT : 0;
-      const stride = speed > 0.2 ? 3 : 0;
-      footL.position.y = 1.2 + Math.max(0, walkSin) * lift * 2;
-      footL.position.z = 1 + walkSin * stride;
-      footR.position.y = 1.2 + Math.max(0, -walkSin) * lift * 2;
-      footR.position.z = 1 - walkSin * stride;
+      const stride = speed > 0.2 ? 2.7 : 0;
+      footL.position.y = 1.45 + Math.max(0, walkSin) * lift * 1.6;
+      footL.position.z = 1.6 + walkSin * stride;
+      footR.position.y = 1.45 + Math.max(0, -walkSin) * lift * 1.6;
+      footR.position.z = 1.6 - walkSin * stride;
+    }
+
+    // 킥 계열: 짧은 다리가 말도 안 되게 뻗는 몸개그 포즈
+    if (isFrontKick && legR && footR) {
+      const ext = kickSnap;
+      legR.position.set(3.8, 6.5, 3 + ext * 6);
+      legR.rotation.x = -0.65;
+      legR.scale.set(1.02, 1.08, 1.02);
+      footR.position.set(3.8, 3.6, 7 + ext * 9);
+      footR.rotation.x = -0.25;
+      footR.scale.set(1.18, 1.08, 1.12);
+    } else if (isRoundKick && legR && footR) {
+      const swing = roundSwing;
+      const sweep = Math.cos(roundSnap * Math.PI);
+      legR.position.set(7 + swing * 4, 6.2, 2 + sweep * 4);
+      legR.rotation.z = -0.75 + swing * 0.35;
+      legR.scale.set(1.02, 1.08, 1.02);
+      footR.position.set(11 + swing * 6, 4, 2 + sweep * 6);
+      footR.rotation.z = -0.35 + swing * 0.35;
+      footR.scale.set(1.22, 1.08, 1.1);
+    } else {
+      if (legR) {
+        legR.rotation.x = 0;
+        legR.rotation.z = 0;
+        legR.scale.set(1, 1, 1);
+      }
+      if (footR) {
+        footR.rotation.x = 0;
+        footR.rotation.z = 0;
+        footR.scale.set(1, 1, 1);
+      }
     }
 
     // Arms (simple small stumps)
@@ -769,7 +861,7 @@
     const handL = group.getObjectByName('handL');
     const handR = group.getObjectByName('handR');
     const isTeetering = player.teetering;
-    const isPunching = player.punching;
+    const isPunching = player.punching || isStraight || isHook;
     const isCharging = player.charging;
 
     let armSwing = 0;
@@ -778,7 +870,19 @@
     }
 
     if (armL) {
-      if (isPunching) {
+      if (isHook && isLeftPunch) {
+        armL.rotation.x = 0.15 + hookSwing * 0.25;
+        armL.rotation.z = -0.55 - hookSwing * 0.9;
+      } else if (isStraight && isLeftPunch) {
+        armL.rotation.x = 0.35 + punchSnap * 0.95;
+        armL.rotation.z = -0.1;
+      } else if (isHook || isStraight) {
+        armL.rotation.x = -0.2;
+        armL.rotation.z = -0.2;
+      } else if (isFrontKick || isRoundKick) {
+        armL.rotation.x = -0.8;
+        armL.rotation.z = -0.9;
+      } else if (isPunching) {
         armL.rotation.x = 0.6; armL.rotation.z = -0.3;
       } else if (isCharging) {
         if (chargeRatio < 0.5) {
@@ -796,10 +900,22 @@
       } else {
         armL.rotation.x = -armSwing; armL.rotation.z = -0.4;
       }
-      armL.position.y = 18 + idleBob + walkBounce;
+      armL.position.y = 17.4 + idleBob + walkBounce;
     }
     if (armR) {
-      if (isPunching) {
+      if (isStraight && isRightPunch) {
+        armR.rotation.x = 0.35 + punchSnap * 0.95;
+        armR.rotation.z = 0.1;
+      } else if (isHook && isRightPunch) {
+        armR.rotation.x = 0.15 + hookSwing * 0.25;
+        armR.rotation.z = 0.55 + hookSwing * 0.95;
+      } else if (isHook || isStraight) {
+        armR.rotation.x = -0.2;
+        armR.rotation.z = 0.2;
+      } else if (isFrontKick || isRoundKick) {
+        armR.rotation.x = -0.8;
+        armR.rotation.z = 0.9;
+      } else if (isPunching) {
         armR.rotation.x = 0.6; armR.rotation.z = 0.3;
       } else if (isCharging) {
         if (chargeRatio < 0.5) {
@@ -817,41 +933,62 @@
       } else {
         armR.rotation.x = armSwing; armR.rotation.z = 0.4;
       }
-      armR.position.y = 18 + idleBob + walkBounce;
+      armR.position.y = 17.4 + idleBob + walkBounce;
     }
     if (handL) {
       if (isTeetering) {
         handL.position.set(-12, 18 + Math.sin(ts * 18) * 4, Math.cos(ts * 18) * 4);
+      } else if (isStraight && isLeftPunch) {
+        const reach = punchSnap;
+        handL.position.set(-8.9, 16.2, 5.2 + reach * 8.4);
+        handL.scale.set(1.22, 1.22, 1.22);
+      } else if (isHook && isLeftPunch) {
+        handL.position.set(-11.6 - hookSwing * 3.6, 15.7 + hookSwing * 1.8, 3.2 + hookSwing * 2.8);
+        handL.scale.set(1.14, 1.14, 1.14);
+      } else if (isStraight || isHook) {
+        handL.position.set(-9.8, 13.8 + idleBob, 1.4);
+        handL.scale.set(0.94, 0.94, 0.94);
       } else if (isCharging) {
         if (chargeRatio < 0.5) {
-          handL.position.set(-10, 14 + idleBob, 0);
+          handL.position.set(-10, 13.4 + idleBob, 1.3);
         } else {
           const spread = 10 + (chargeRatio - 0.5) * 6;
           const tremor = Math.sin(ts * 25) * chargeRatio * 0.8;
-          handL.position.set(-spread, 14 + idleBob + tremor, tremor);
+          handL.position.set(-spread, 13.4 + idleBob + tremor, 1.3 + tremor);
         }
       } else {
-        handL.position.set(-12, 14 + idleBob + walkBounce, 0);
+        handL.position.set(-11.8, 13.3 + idleBob + walkBounce, 1.3);
+        handL.scale.set(1, 1, 1);
       }
     }
     if (handR) {
       if (isTeetering) {
         handR.position.set(12, 18 + Math.sin(ts * 18 + 2.5) * 4, Math.cos(ts * 18 + 2.5) * 4);
+      } else if (isStraight && isRightPunch) {
+        const reach = punchSnap;
+        handR.position.set(8.9, 16.2, 5.2 + reach * 8.4);
+        handR.scale.set(1.22, 1.22, 1.22);
+      } else if (isHook && isRightPunch) {
+        handR.position.set(11.6 + hookSwing * 3.6, 15.7 + hookSwing * 1.8, 3.2 + hookSwing * 2.8);
+        handR.scale.set(1.16, 1.16, 1.16);
+      } else if (isStraight || isHook) {
+        handR.position.set(9.8, 13.8 + idleBob, 1.4);
+        handR.scale.set(0.94, 0.94, 0.94);
       } else if (isCharging) {
         if (chargeRatio < 0.5) {
-          handR.position.set(10, 14 + idleBob, 0);
+          handR.position.set(10, 13.4 + idleBob, 1.3);
         } else {
           const spread = 10 + (chargeRatio - 0.5) * 6;
           const tremor = Math.sin(ts * 25) * chargeRatio * 0.8;
-          handR.position.set(spread, 14 + idleBob + tremor, tremor);
+          handR.position.set(spread, 13.4 + idleBob + tremor, 1.3 + tremor);
         }
       } else {
-        handR.position.set(12, 14 + idleBob + walkBounce, 0);
+        handR.position.set(11.8, 13.3 + idleBob + walkBounce, 1.3);
+        handR.scale.set(1, 1, 1);
       }
     }
 
     // Hat animation
-    const chargeYOffset = isCharging ? chargeRatio * 3 : 0;
     const hat = group.getObjectByName('hat');
     if (hat) {
       hat.position.y = 35 + idleBob + walkBounce + chargeYOffset;
@@ -879,12 +1016,12 @@
     const eyeL = group.getObjectByName('eyeL');
     const eyeR = group.getObjectByName('eyeR');
     if (eyeL) {
-      eyeL.position.y = 24.5 + idleBob + walkBounce + chargeYOffset;
+      eyeL.position.y = 24.8 + idleBob + walkBounce * 0.45 + chargeYOffset;
       // chargeRatio > 0.5: 눈 찡그림
       eyeL.scale.y = (isCharging && chargeRatio > 0.5) ? (1 - (chargeRatio - 0.5) * 0.8) : 1;
     }
     if (eyeR) {
-      eyeR.position.y = 24.5 + idleBob + walkBounce + chargeYOffset;
+      eyeR.position.y = 24.8 + idleBob + walkBounce * 0.45 + chargeYOffset;
       eyeR.scale.y = (isCharging && chargeRatio > 0.5) ? (1 - (chargeRatio - 0.5) * 0.8) : 1;
     }
 
@@ -1176,6 +1313,34 @@
     }
   }
 
+  // ─── 주먹/킥 난투 임팩트 이펙트 ───────────────────────────────────────────
+  function spawnCombatImpact(sx, sy, attackType, attackFamily, hitCount) {
+    if (hitCount <= 0) return;
+
+    const isKick = attackFamily === 'kick';
+    const isHeavy = attackType === 'frontKick' || attackType === 'roundKick';
+    const color =
+      attackType === 'hook' ? '#ff66aa' :
+      attackType === 'roundKick' ? '#ffaa00' :
+      isKick ? '#ffdd44' : '#ffffff';
+
+    spawn3DParticles(sx, sy, isHeavy ? 10 : 5, color, isHeavy ? 1.2 : 0.75);
+
+    if (isKick) {
+      spawnShockwaveRing(sx, sy, attackType === 'roundKick' ? 14 : 8, color, 5, attackType === 'roundKick' ? 0.9 : 1.15);
+      shakeCamera(attackType === 'frontKick' ? 2.5 : 1.8, 140);
+    } else if (attackType === 'hook') {
+      spawnShockwaveRing(sx, sy, 7, '#ff66aa', 4, 0.55);
+      shakeCamera(1.2, 90);
+    } else {
+      shakeCamera(0.8, 70);
+    }
+
+    if (hitCount >= 2) {
+      spawnFloatingText(sx, sy, '우당탕!', '#ffdd44', 0.8);
+    }
+  }
+
   // ─── 카메라 셰이크 ─────────────────────────────────────────────────────────
   let cameraShake = { intensity: 0, endTime: 0 };
 
@@ -1374,23 +1539,44 @@
   }
 
   // ─── Game Loop ──────────────────────────────────────────────────────────────
-  function startGameLoop() {
-    game.running = true;
+  function clearRuntimeScene() {
     game.stateBuffer = [];
+    game.currentState = null;
     game.interpolatedPlayers = {};
     game.killLogEntries = [];
-    Object.keys(charGroups).forEach(id => { scene.remove(charGroups[id]); });
+    game.countdownValue = null;
+    game.countdownFade = 0;
+    Object.keys(charGroups).forEach(id => {
+      if (scene) scene.remove(charGroups[id]);
+    });
     charGroups = {};
     charAnims = {};
-    particles3d.forEach(p => { scene.remove(p.mesh); });
+    particles3d.forEach(p => {
+      if (scene) scene.remove(p.mesh);
+    });
     particles3d = [];
-    elimAnims3d.forEach(a => { scene.remove(a.mesh); });
+    elimAnims3d.forEach(a => {
+      if (scene) scene.remove(a.mesh);
+    });
     elimAnims3d = [];
+  }
+
+  function startGameLoop() {
+    game.running = true;
+    clearRuntimeScene();
     clock.start();
     requestAnimationFrame(gameLoop);
   }
 
-  function stopGameLoop() { game.running = false; }
+  function stopGameLoop(options) {
+    game.running = false;
+    if (options && options.clear) {
+      clearRuntimeScene();
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+  }
 
   function gameLoop() {
     if (!game.running) return;
@@ -1521,31 +1707,11 @@
 
   function updateCooldownOverlays() {
     const now = Date.now();
-    const d = document.getElementById('dash-btn');
-    if (d) {
-      if (game.punchCharging) {
-        const ratio = Math.min(1, (now - game.punchChargeStart) / PUNCH_MAX_CHARGE_MS);
-        d.style.background = `linear-gradient(to top, #ff2200 ${ratio * 100}%, rgba(0,240,255,0.25) ${ratio * 100}%)`;
-        // 붉은 glow 펄스 (chargeRatio > 0.7)
-        if (ratio > 0.7) {
-          const glowPulse = 5 + Math.sin(now * 0.01) * 5;
-          d.style.boxShadow = `0 0 ${glowPulse + 10}px ${glowPulse}px rgba(255,34,0,${0.4 + ratio * 0.4})`;
-        } else {
-          d.style.boxShadow = '';
-        }
-        // 미세 흔들림 (chargeRatio > 0.9)
-        if (ratio > 0.9) {
-          const shake = (Math.random() - 0.5) * 3;
-          d.style.transform = `scale(${1 + ratio * 0.3}) translate(${shake}px, ${shake}px)`;
-        } else {
-          d.style.transform = `scale(${1 + ratio * 0.3})`;
-        }
-      } else {
-        d.style.background = '';
-        d.style.transform = '';
-        d.style.boxShadow = '';
-      }
-    }
+    const me = game.myId ? game.interpolatedPlayers[game.myId] : null;
+    const punch = document.getElementById('punch-btn');
+    const kick = document.getElementById('kick-btn');
+    if (punch) punch.style.transform = me && me.attackFamily === 'punch' ? 'scale(0.9)' : '';
+    if (kick) kick.style.transform = me && me.attackFamily === 'kick' ? 'scale(0.9)' : '';
     const g = document.getElementById('dodge-btn');
     if (g) g.classList.toggle('on-cooldown', game.dodgeCooldownEnd - now > 0);
   }
@@ -1605,24 +1771,13 @@
 
   // ─── Buttons + Keyboard ─────────────────────────────────────────────────────
   function setupButtonControls() {
-    const dashBtn = document.getElementById('dash-btn');
+    const punchBtn = document.getElementById('punch-btn');
+    const kickBtn = document.getElementById('kick-btn');
     const dodgeBtn = document.getElementById('dodge-btn');
 
-    function startPunchCharge() {
-      // 이전 차징이 걸려있으면 강제 해제 후 재시작
-      if (game.punchCharging) {
-        game.punchCharging = false;
-        window.network && window.network.sendPunchRelease(0);
-      }
-      game.punchCharging = true;
-      game.punchChargeStart = Date.now();
-      window.network && window.network.sendPunchStart();
-    }
-    function releasePunch() {
-      if (!game.punchCharging) return;
-      const charge = Math.min(1, (Date.now() - game.punchChargeStart) / PUNCH_MAX_CHARGE_MS);
-      game.punchCharging = false;
-      window.network && window.network.sendPunchRelease(charge);
+    function triggerAttack(family) {
+      if (!game.running) return;
+      window.network && window.network.sendAttack(family);
     }
     function triggerDodge() {
       const now = Date.now();
@@ -1632,52 +1787,18 @@
       }
     }
 
-    if (dashBtn) {
-      dashBtn.addEventListener('touchstart', e => {
-        e.preventDefault();
-        if (game.punchCharging) return;
-        game.punchTouchId = e.changedTouches[0].identifier;
-        startPunchCharge();
-      }, { passive: false });
-      dashBtn.addEventListener('mousedown', e => { e.preventDefault(); startPunchCharge(); });
-      dashBtn.addEventListener('mouseup', () => { releasePunch(); });
+    if (punchBtn) {
+      punchBtn.addEventListener('touchstart', e => { e.preventDefault(); triggerAttack('punch'); }, { passive: false });
+      punchBtn.addEventListener('click', () => triggerAttack('punch'));
     }
-
-    // 버튼 밖으로 손가락이 이동해도 원래 터치면 릴리즈
-    document.addEventListener('touchend', e => {
-      if (game.punchTouchId === null) return;
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === game.punchTouchId) {
-          game.punchTouchId = null;
-          releasePunch();
-          return;
-        }
-      }
-    }, { passive: false });
-
-    document.addEventListener('touchcancel', e => {
-      if (game.punchTouchId === null) return;
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === game.punchTouchId) {
-          game.punchTouchId = null;
-          releasePunch();
-          return;
-        }
-      }
-    });
+    if (kickBtn) {
+      kickBtn.addEventListener('touchstart', e => { e.preventDefault(); triggerAttack('kick'); }, { passive: false });
+      kickBtn.addEventListener('click', () => triggerAttack('kick'));
+    }
     if (dodgeBtn) {
       dodgeBtn.addEventListener('touchstart', e => { e.preventDefault(); triggerDodge(); }, { passive: false });
       dodgeBtn.addEventListener('click', triggerDodge);
     }
-
-    document.addEventListener('keydown', e => {
-      if (!game.running) return;
-      if (e.key === 'j' || e.key === 'J' || e.key === ' ') startPunchCharge();
-      if (e.key === 'k' || e.key === 'K' || e.key === 'Shift') triggerDodge();
-    });
-    document.addEventListener('keyup', e => {
-      if (e.key === 'j' || e.key === 'J' || e.key === ' ') releasePunch();
-    });
 
     const keys = {};
     document.addEventListener('keydown', e => { keys[e.key] = true; updKb(); });
@@ -1708,5 +1829,6 @@
     showCountdown, addKillLogEntry, addElimAnimation,
     spawnParticles: spawn3DParticles,
     spawnPunchImpact,
+    spawnCombatImpact,
   };
 })();
