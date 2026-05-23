@@ -466,10 +466,10 @@ class UI {
       }
       if (data.phase === 'lobby') {
         // Returned to lobby (e.g., after restart)
-        this.showScreen('waiting');
         if (window.gameRenderer && typeof window.gameRenderer.stopGameLoop === 'function') {
-          window.gameRenderer.stopGameLoop();
+          window.gameRenderer.stopGameLoop({ clear: true });
         }
+        this.showScreen('waiting');
       }
     });
 
@@ -506,6 +506,19 @@ class UI {
       }
     });
 
+    // -- Combat impact (주먹/킥 난투 이펙트) --
+    net.on('combat-impact', (data) => {
+      if (window.gameRenderer && typeof window.gameRenderer.spawnCombatImpact === 'function') {
+        window.gameRenderer.spawnCombatImpact(
+          data.x,
+          data.y,
+          data.attackType,
+          data.attackFamily,
+          data.hitCount || 0,
+        );
+      }
+    });
+
     // -- Player eliminated --
     net.on('player-eliminated', (data) => {
       this.showKillNotification(data.playerName, data.killerName || null);
@@ -528,7 +541,7 @@ class UI {
     net.on('game-over', (data) => {
       // Stop game loop
       if (window.gameRenderer && typeof window.gameRenderer.stopGameLoop === 'function') {
-        window.gameRenderer.stopGameLoop();
+        window.gameRenderer.stopGameLoop({ clear: true });
       }
       this.showResults(data.winner, data.rankings);
     });
